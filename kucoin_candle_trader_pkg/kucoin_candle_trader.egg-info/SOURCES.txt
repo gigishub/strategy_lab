@@ -1,0 +1,11 @@
+README.md
+setup.py
+kucoin_candle_spot/__init__.py
+kucoin_candle_spot/kucoin_fetch_spot.py
+kucoin_candle_spot/kucoin_websocket.py
+kucoin_candle_spot/live_data_update.py
+kucoin_candle_trader.egg-info/PKG-INFO
+kucoin_candle_trader.egg-info/SOURCES.txt
+kucoin_candle_trader.egg-info/dependency_links.txt
+kucoin_candle_trader.egg-info/requires.txt
+kucoin_candle_trader.egg-info/top_level.txt

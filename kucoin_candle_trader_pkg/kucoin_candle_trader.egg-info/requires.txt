@@ -1,0 +1,9 @@
+pandas>=1.0.0
+requests>=2.0.0
+websocket-client>=0.57.0
+
+[:python_version < "3.7"]
+dataclasses
+
+[:python_version < "3.8"]
+typing-extensions

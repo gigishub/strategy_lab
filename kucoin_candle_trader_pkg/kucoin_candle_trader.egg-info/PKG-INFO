@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: kucoin_candle_trader
+Version: 0.1.0
+Summary: A library for live data updates and fetching spot data from KuCoin
+Home-page: https://github.com/gigishub/kucoin_candle_trader
+Author: Andre
+Author-email: receivemailforme@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=1.0.0
+Requires-Dist: requests>=2.0.0
+Requires-Dist: websocket-client>=0.57.0
+Requires-Dist: dataclasses; python_version < "3.7"
+Requires-Dist: typing-extensions; python_version < "3.8"
+
+# KuCoin Candle Trader
+
+A library for live data updates and fetching spot data from KuCoin.
+
+## Installation
+
+```bash
+pip install kucoin_candle_trader
