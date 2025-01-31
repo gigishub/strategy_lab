@@ -1,5 +1,0 @@
-- seperate strategy
-    indiactor imput 
-    trading input enry exit
-
-    how to test different pairs
