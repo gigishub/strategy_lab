@@ -73,15 +73,19 @@ class SetUpBotKucoin:
             raise ValueError("Unsupported timeframe")
         return datetime.datetime.now(datetime.timezone.utc) - (bars * delta)
 
-    def calculate_indicators(self, atr_length_sl=14, atr_length_vola=20, ema_length=20):
+
+
+    def calculate_indicators(self, atr_length_sl=14, atr_length_vola=20, ema_trend_length=20,ema_is_bullish_length=10):
         self.df['atr_sl'] = ta.atr(self.df['high'], self.df['low'], self.df['close'], atr_length_sl)
         self.df['atr_vola'] = ta.atr(self.df['high'], self.df['low'], self.df['close'], atr_length_vola)
-        self.df['ema_trend'] = ta.ema(self.df['close'], ema_length)
+        self.df['ema_trend'] = ta.ema(self.df['close'], ema_trend_length)
+        self.df['ema_is_bullish'] = ta.ema(self.df['close'], ema_is_bullish_length)
 
 
     def get_signal(self, lookback_high=7, atr_vol_multiplier=1.5):
         is_ready = self.df['atr_sl'].notna() & self.df['atr_vola'].notna() & self.df['ema_trend'].notna()
-        is_bullish = (self.df['close'] > self.df['ema_trend']) & is_ready
+
+        is_bullish = (self.df['close'] > self.df['ema_trend']) & (self.df['close'] > self.df['ema_is_bullish']) & is_ready
 
         rolling_high = self.df['high'].rolling(lookback_high).max()
         is_bearish_vola = (rolling_high - self.df['low']) > (self.df['atr_vola'] * atr_vol_multiplier)
@@ -101,7 +105,10 @@ class SetUpBotKucoin:
         self.df['trail_sl'] = np.nan
         self.df['sl_hit'] = False
         self.df['update_tsl'] = False
+
+
         self.df['trail_source'] = self.df['low'].rolling(7).max()
+
 
 
 
@@ -286,10 +293,10 @@ class SetUpBotKucoin:
 
     def trade_execution(self):
 
-        test_amount = 0.00001
-        exchange = self.initialize_kucoin_connection()
-        buy_amount = self.calculate_order_size_buy(exchange, self.symbol, 0.1)
-        sell_amount = self.calculate_order_size_sell(exchange, self.symbol, 1)
+        # test_amount = 0.00001
+        # exchange = self.initialize_kucoin_connection()
+        # buy_amount = self.calculate_order_size_buy(exchange, self.symbol, 0.1)
+        # sell_amount = self.calculate_order_size_sell(exchange, self.symbol, 1)
         # Last candle was just received
         logger.info(f"\n{self.df[['signal', 'open', 'close', 'trail_sl', 'sl_hit', 'in_trade']].tail(5)}")
 
@@ -299,7 +306,7 @@ class SetUpBotKucoin:
                 # Selling logic
                 # sell_order = exchange.create_market_sell_order(self.symbol, sell_amount)
                 logger.info("Trade was stopped out.")
-                logger.info(sell_order)
+                # logger.info(sell_order)
             except Exception as e:
                 logger.error(f'Failed to sel: {e}')
 
@@ -308,7 +315,7 @@ class SetUpBotKucoin:
             try:
                 # buy_order = exchange.create_market_buy_order(self.symbol, buy_amount)
                 logger.info("Trade was entered.")
-                logger.info(buy_order)
+                # logger.info(buy_order)
             except Exception as e:
                 logger.error(f'Failed to buy: {e}')
 
@@ -323,31 +330,47 @@ class SetUpBotKucoin:
             
             
 def test1():
-    strategy = SetUpBotKucoin('BTC-USDT','1day')
-    # strategy.update_til_now(lookback_bars=700)
+    # strategy parameter 
+    symbol = 'BTC-USDT'
+    timeframe = '1min'
 
-    strategy.wait_for_candle_completion()
+    # indicator parameters
+    atr_length_sl = 5
+    atr_length_vola = 5
+    ema_trend_length = 150
+    ema_is_bullish_length = 10
 
-    strategy.calculate_indicators(atr_length_sl=5, atr_length_vola=5, ema_length=150)
-    strategy.get_signal(lookback_high=7, atr_vol_multiplier=1.5)
+    # parameters to calculate signal
+    lookback_high = 7 # the number of bars to look back to calculate the rolling high for valatility calculation
+    atr_vol_multiplier = 1.5 # the multiplier to determine if the volatility is high
+    
 
-    for i in range(1, len(strategy.df)):
-        # First check if we got stopped out
-        strategy.check_sl(i)
+    while True:
+            
+        strategy = SetUpBotKucoin(symbol,timeframe)
+        # strategy.update_til_now(lookback_bars=700)
+
+        strategy.wait_for_candle_completion()
+
+        strategy.calculate_indicators(atr_length_sl, atr_length_vola, ema_trend_length,ema_is_bullish_length)
+        strategy.get_signal(lookback_high, atr_vol_multiplier)
+
+        for i in range(1, len(strategy.df)):
+            # First check if we got stopped out
+            strategy.check_sl(i)
+            
+            # Only proceed with trade management if we're not stopped out
+            if not strategy.df['sl_hit'].iloc[i]:
+                strategy.handle_signal(i)
+                strategy.update_trail_sl(i)
+                strategy.set_in_trade(i)
+
+
+        df = strategy.df
+
+        strategy.trade_execution()
         
-        # Only proceed with trade management if we're not stopped out
-        if not strategy.df['sl_hit'].iloc[i]:
-            strategy.handle_signal(i)
-            strategy.update_trail_sl(i)
-            strategy.set_in_trade(i)
-
-
-
-    # print(strategy.df[['signal','close','trail_sl','sl_hit','tsl_caution','tsl_buy','in_trade',]].head(40))
-    # print(strategy.df[['signal','open','close','trail_sl','sl_hit','in_trade',]].tail(50))
-    df = strategy.df
-
-    strategy.trade_execution()
+        time.sleep(60)
 
 
 if __name__ == '__main__':
