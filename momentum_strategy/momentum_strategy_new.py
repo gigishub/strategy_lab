@@ -351,7 +351,7 @@ class SetUpBotKucoin:
 
 
 
-    def trade_execution(self):
+    def trade_execution(self,testing=False):
 
         # test_amount = 0.00001
         
@@ -359,11 +359,11 @@ class SetUpBotKucoin:
         buy_amount = self.calculate_order_size_buy(exchange, self.symbol)
         sell_amount = self.calculate_order_size_sell(exchange, self.symbol, 1)
         
-        
-        #minimum Amount for testing 
-        market = exchange.market(self.symbol)
-        # Extract the minimum order size to detremine if SOL is in trade
-        buy_amount = Decimal(str(market['limits']['amount']['min']))
+        if testing:
+            #minimum Amount for testing 
+            market = exchange.market(self.symbol)
+            # Extract the minimum order size to detremine if SOL is in trade
+            buy_amount = Decimal(str(market['limits']['amount']['min']))
         
 
 
@@ -400,9 +400,12 @@ class SetUpBotKucoin:
             
             
 def trade_SOL():
+
+    
     # strategy parameter 
+    testing = False
     symbol = 'SOL-USDT'
-    timeframe = '1day'
+    timeframe = '1min'
 
     # indicator parameters
     atr_length_sl = 5
@@ -438,15 +441,16 @@ def trade_SOL():
 
     df = strategy.df
 
-    strategy.trade_execution()
+    strategy.trade_execution(testing)
 
 
         
             
 def trade_BTC():
     # strategy parameter 
+    testing = False
     symbol = 'BTC-USDT'
-    timeframe = '1day'
+    timeframe = '1min'
 
     # indicator parameters
     atr_length_sl = 5
@@ -481,24 +485,23 @@ def trade_BTC():
 
     df = strategy.df
 
-    strategy.trade_execution()
+    strategy.trade_execution(testing)
 
 
-
-# if __name__ == '__main__':
-#     runtime = 3 # minutes for the trading to run
-#     start_time = datetime.datetime.now()
-#     while start_time + datetime.timedelta(minutes=runtime) > datetime.datetime.now():
-#         trade_SOL()
-#         trade_BTC()
-#         logger.info('Trade check completed for today\n')
-#         time.sleep(60)
-#     logger.info('testing runtime completed')
 
 if __name__ == '__main__':
+    runtime = 30 # minutes for the trading to run
+    start_time = datetime.datetime.now()
+    while start_time + datetime.timedelta(minutes=runtime) > datetime.datetime.now():
+        trade_SOL()
+        trade_BTC()
+        logger.info('Trade check completed for today\n')
+        time.sleep(60)
+    logger.info('testing runtime completed')
 
-    trade_SOL()
-    trade_BTC()
-    logger.info('Trade check completed for today\n')
+# if __name__ == '__main__':
+#     trade_SOL()
+#     trade_BTC()
+#     logger.info('Trade check completed for today\n')
 
 
