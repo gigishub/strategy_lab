@@ -165,7 +165,7 @@ class SetUpBotKucoin:
             self.df.loc[self.df.index[i], 'in_trade'] = 1
 
 
-    def initialize_kucoin_connection(self,config_path: str = '/Users/andre/Documents/Python/trading_clone_singapore_DO/trading_singapore_digitalocean/kucoin_dir/config_api.json') -> ccxt.kucoin:
+    def initialize_kucoin_connection_old(self,config_path: str = '/Users/andre/Documents/Python/trading_clone_singapore_DO/trading_singapore_digitalocean/kucoin_dir/config_api.json') -> ccxt.kucoin:
         """
         Initialize the connection to KuCoin exchange using ccxt.
         
@@ -185,36 +185,96 @@ class SetUpBotKucoin:
         return exchange
     
 
+    def initialize_kucoin_connection(self) -> ccxt.kucoin:
+
+        # Create the exchange object
+        exchange = ccxt.kucoin({
+            "apiKey": "66ba4dd1d3e67a000108330f",
+            "secret":"c5465410-7eca-43a4-86ac-c63c0e9b8da5",
+            "password":"buhyabuhna" 
+
+        })
+        
+        return exchange
+    
+
 
         
-    def calculate_order_size_buy(self,exchange, symbol: str, percent_from_bal: float) -> float:
+    def calculate_order_size_buy(self,exchange, symbol: str) -> float:
 
+
+        # if free == total 50% of balance is used and if free != total 100% of balance is used
         # Fetch the balance
         balance = exchange.fetch_balance()
+
         usdt_balance = balance['USDT']['free']
-        print(f'USDT balance: {usdt_balance}')
+        logger.info(f'USDT Total balance: {usdt_balance}')
 
-        # Calculate percent of balance to use
-        usdt_to_use = usdt_balance * percent_from_bal
-        print(f'USDT to use: {usdt_to_use}')
+        basecoin = symbol.split('-')[0]
 
-        # Get the current price of the asset
-        price = exchange.fetch_ticker(symbol)['last']
-        print(f'Current price of {symbol}: {price}')
-
-        # Calculate the order size
-        order_size = usdt_to_use / price
+        basecoin_balance = Decimal(str(balance[basecoin]['free']))
+        logger.info(f'{basecoin} balance: {basecoin_balance}')
 
         # Get the precision of the asset for rounding
         market = exchange.market(symbol)
+
         precision = market['precision']['amount']
         max_decimals = abs(Decimal(str(precision)).as_tuple().exponent)
+
+        # Get the current price of the asset
+        symbol_price = exchange.fetch_ticker(symbol)['last']
+        logger.info(f'Current price of {symbol}: {symbol_price}')
+        
+        # check if basecoin balance is less than 3 times the minimum order size
+        # to determine if 
+        if basecoin == 'SOL':
+            symbol_to_check = 'BTC-USDT'
+            btc_market = exchange.market(symbol_to_check)
+            # Extract the minimum order size to detremine if BTC is in trade
+            min_order_size = Decimal(str(btc_market['limits']['amount']['min']))
+            btc_balance = Decimal(str(balance['BTC']['free']))
+
+
+            if btc_balance <= (min_order_size):
+                # if no trade use 50% of balance
+                percent_from_bal = 0.5 
+                logger.info('BTC is not in trade use 50% of balance to buy SOL if trade will be entered')
+            else:
+                # use 100% of balance if BTC is in trade
+                percent_from_bal = 1
+                logger.info('BTC is in trade use 100% of balance to buy SOL if trade will be entered')
+
+
+        elif basecoin == 'BTC':
+            symbol_to_check = 'SOL-USDT'
+            sol_market = exchange.market(symbol_to_check)
+            # Extract the minimum order size to detremine if SOL is in trade
+            min_order_size = Decimal(str(sol_market['limits']['amount']['min']))
+            sol_balance = Decimal(str(balance['SOL']['free']))
+            
+            # if SOL balance is less than 3 times the minimum SOL is NOT in trade
+            if sol_balance <= (min_order_size ):
+                # if no trade use 50% of balance
+                percent_from_bal = 0.5 
+                logger.info('SOL is not in trade use 50% of balance to buy BTC if trade will be entered')
+
+            # if SOL balance is more than 3 times the minimum SOL is in trade
+            else:
+                # use 100% of balance if SOL is in trade
+                percent_from_bal = 1
+                logger.info('SOL is in trade use 100% of balance to buy BTC if trade will be entered')
+
+
+        usdt_to_use = usdt_balance * percent_from_bal
+        logger.info(f'USDT to use for {symbol}: {usdt_to_use}')
+
+        # Calculate the order size
+        order_size = usdt_to_use / symbol_price
 
         # Round down the order size to the maximum number of decimal places allowed by the exchange
         factor = 10 ** max_decimals
         rounded_order_size = math.floor(order_size * factor) / factor
 
-        # print(f'Order size: {rounded_order_size:.{max_decimals}f}')
         return rounded_order_size
     
 
@@ -223,7 +283,8 @@ class SetUpBotKucoin:
             # Fetch the balance
             balance = exchange.fetch_balance()
             coin_balance = balance[symbol.split('-')[0]]['free']
-            print(f'{symbol.split("-")[0]} balance: {coin_balance}')
+
+            # print(f'{symbol.split("-")[0]} balance: {coin_balance}')
     
             # Calculate percent of balance to use
             order_size = coin_balance * percent_from_bal
@@ -237,7 +298,6 @@ class SetUpBotKucoin:
             factor = 10 ** max_decimals
             rounded_order_size = math.floor(order_size * factor) / factor
     
-            # print(f'Order size: {rounded_order_size:.{max_decimals}f}')
             return rounded_order_size
 
 
@@ -294,28 +354,38 @@ class SetUpBotKucoin:
     def trade_execution(self):
 
         # test_amount = 0.00001
-        # exchange = self.initialize_kucoin_connection()
-        # buy_amount = self.calculate_order_size_buy(exchange, self.symbol, 0.1)
-        # sell_amount = self.calculate_order_size_sell(exchange, self.symbol, 1)
+        
+        exchange = self.initialize_kucoin_connection()
+        buy_amount = self.calculate_order_size_buy(exchange, self.symbol)
+        sell_amount = self.calculate_order_size_sell(exchange, self.symbol, 1)
+        
+        
+        #minimum Amount for testing 
+        market = exchange.market(self.symbol)
+        # Extract the minimum order size to detremine if SOL is in trade
+        buy_amount = Decimal(str(market['limits']['amount']['min']))
+        
+
+
         # Last candle was just received
-        logger.info(f"\n{self.df[['signal', 'open', 'close', 'trail_sl', 'sl_hit', 'in_trade']].tail(5)}")
+        logger.info(f"\n{self.df[['signal', 'open', 'close', 'trail_sl', 'sl_hit', 'in_trade']].tail(15)}")
 
 
         if self.df['sl_hit'].iloc[-1]:
             try:
                 # Selling logic
-                # sell_order = exchange.create_market_sell_order(self.symbol, sell_amount)
+                sell_order = exchange.create_market_sell_order(self.symbol, sell_amount)
                 logger.info("Trade was stopped out.")
-                # logger.info(sell_order)
+                logger.info(sell_order)
             except Exception as e:
                 logger.error(f'Failed to sel: {e}')
 
         elif self.df['signal'].iloc[-1] == 'buy' and self.df['in_trade'].iloc[-2] == 0:
             # Buying logic
             try:
-                # buy_order = exchange.create_market_buy_order(self.symbol, buy_amount)
+                buy_order = exchange.create_market_buy_order(self.symbol, buy_amount)
                 logger.info("Trade was entered.")
-                # logger.info(buy_order)
+                logger.info(buy_order)
             except Exception as e:
                 logger.error(f'Failed to buy: {e}')
 
@@ -325,53 +395,110 @@ class SetUpBotKucoin:
             logger.info("No action.")
 
 
-        print ('=========================================================================================\n')
+        logger.info ('=========================================================================================\n')
 
             
             
-def test1():
+def trade_SOL():
     # strategy parameter 
-    symbol = 'BTC-USDT'
-    timeframe = '1min'
+    symbol = 'SOL-USDT'
+    timeframe = '1day'
 
     # indicator parameters
     atr_length_sl = 5
     atr_length_vola = 5
-    ema_trend_length = 150
+    ema_trend_length = 240
     ema_is_bullish_length = 10
 
     # parameters to calculate signal
     lookback_high = 7 # the number of bars to look back to calculate the rolling high for valatility calculation
-    atr_vol_multiplier = 1.5 # the multiplier to determine if the volatility is high
+    atr_vol_multiplier = 1.6 # the multiplier to determine if the volatility is high
+
+
+
+    strategy = SetUpBotKucoin(symbol,timeframe)
+    # strategy.update_til_now(lookback_bars=700)
+
+    strategy.wait_for_candle_completion()
+    logger.info(f"Check {symbol} for trade signal")
+
+    strategy.calculate_indicators(atr_length_sl, atr_length_vola, ema_trend_length,ema_is_bullish_length)
+    strategy.get_signal(lookback_high, atr_vol_multiplier)
+
+    for i in range(1, len(strategy.df)):
+        # First check if we got stopped out
+        strategy.check_sl(i)
+        
+        # Only proceed with trade management if we're not stopped out
+        if not strategy.df['sl_hit'].iloc[i]:
+            strategy.handle_signal(i)
+            strategy.update_trail_sl(i)
+            strategy.set_in_trade(i)
+
+
+    df = strategy.df
+
+    strategy.trade_execution()
+
+
+        
+            
+def trade_BTC():
+    # strategy parameter 
+    symbol = 'BTC-USDT'
+    timeframe = '1day'
+
+    # indicator parameters
+    atr_length_sl = 5
+    atr_length_vola = 5
+    ema_trend_length = 240
+    ema_is_bullish_length = 10
+
+    # parameters to calculate signal
+    lookback_high = 7 # the number of bars to look back to calculate the rolling high for valatility calculation
+    atr_vol_multiplier = 1.6 # the multiplier to determine if the volatility is high
     
 
-    while True:
-            
-        strategy = SetUpBotKucoin(symbol,timeframe)
-        # strategy.update_til_now(lookback_bars=700)
+    strategy = SetUpBotKucoin(symbol,timeframe)
+    # strategy.update_til_now(lookback_bars=700)
 
-        strategy.wait_for_candle_completion()
+    strategy.wait_for_candle_completion()
+    logger.info(f"Check {symbol} for trade signal")
 
-        strategy.calculate_indicators(atr_length_sl, atr_length_vola, ema_trend_length,ema_is_bullish_length)
-        strategy.get_signal(lookback_high, atr_vol_multiplier)
+    strategy.calculate_indicators(atr_length_sl, atr_length_vola, ema_trend_length,ema_is_bullish_length)
+    strategy.get_signal(lookback_high, atr_vol_multiplier)
 
-        for i in range(1, len(strategy.df)):
-            # First check if we got stopped out
-            strategy.check_sl(i)
-            
-            # Only proceed with trade management if we're not stopped out
-            if not strategy.df['sl_hit'].iloc[i]:
-                strategy.handle_signal(i)
-                strategy.update_trail_sl(i)
-                strategy.set_in_trade(i)
-
-
-        df = strategy.df
-
-        strategy.trade_execution()
+    for i in range(1, len(strategy.df)):
+        # First check if we got stopped out
+        strategy.check_sl(i)
         
-        time.sleep(60)
+        # Only proceed with trade management if we're not stopped out
+        if not strategy.df['sl_hit'].iloc[i]:
+            strategy.handle_signal(i)
+            strategy.update_trail_sl(i)
+            strategy.set_in_trade(i)
 
+
+    df = strategy.df
+
+    strategy.trade_execution()
+
+
+
+# if __name__ == '__main__':
+#     runtime = 3 # minutes for the trading to run
+#     start_time = datetime.datetime.now()
+#     while start_time + datetime.timedelta(minutes=runtime) > datetime.datetime.now():
+#         trade_SOL()
+#         trade_BTC()
+#         logger.info('Trade check completed for today\n')
+#         time.sleep(60)
+#     logger.info('testing runtime completed')
 
 if __name__ == '__main__':
-    test1()
+
+    trade_SOL()
+    trade_BTC()
+    logger.info('Trade check completed for today\n')
+
+
